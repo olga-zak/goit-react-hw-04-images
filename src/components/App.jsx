@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 
 import { fetchImages } from 'services/imagesAPI';
 import { arrayMapper } from 'services/arrayMapper';
@@ -11,114 +11,73 @@ import { Modal } from './Modal/Modal';
 import { GlobalStyles } from './GlobalStyles';
 import { AppStyled } from './App.styled';
 
-export class App extends Component {
-  state = {
-    searchQuery: '',
-    page: 1,
-    images: [],
-    isLoading: false,
-    error: null,
-    currentImage: null,
-    totalAmoutOfPages: 0,
-  };
+export const App = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [images, setImages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentImage, setCurrentImage] = useState(null);
+  const [totalAmoutOfPages, setTotalAmoutOfPages] = useState(0);
 
-  componentDidUpdate(_, prevState) {
-    if (
-      this.state.searchQuery !== prevState.searchQuery ||
-      this.state.page !== prevState.page
-    ) {
-      this.getImages();
+  useEffect(() => {
+    const getImages = () => {
+      setIsLoading(true);
+      fetchImages(searchQuery, page)
+        .then(response => {
+          if (response.data.hits.length === 0) {
+            console.log('no images found');
+          }
+          setImages(prevImages => [
+            ...prevImages,
+            ...arrayMapper(response.data.hits),
+          ]);
+          setTotalAmoutOfPages(Math.ceil(response.data.totalHits / 12));
+        })
+        .catch(error => setError(error.message))
+        .finally(() => setIsLoading(false));
+    };
+    if (searchQuery) {
+      getImages();
     }
-  }
+  }, [searchQuery, page]);
 
-  updateSearchQuery = query => {
-    this.setState({
-      searchQuery: query,
-      page: 1,
-      images: [],
-      totalAmoutOfPages: 0,
-    });
+  const updateSearchQuery = query => {
+    setSearchQuery(query);
+    setPage(1);
+    setImages([]);
+    setTotalAmoutOfPages(0);
   };
 
-  //метод отправки запроса на бэк с поиск.словом, которое ввели в SearchForm инпут
-  getImages = () => {
-    const { searchQuery, page } = this.state;
-    //Пока ждем ответа на HTTP-запрос, показываем идтикатор загрузки.Как только пришел ответ, прячем индикатор.
-    //Для этого на старте запроса ставим isLoading в true, а при успешном ответе или ошибке в false - в .finally()
-    this.setState({ isLoading: true });
-
-    fetchImages(searchQuery, page) //отправляем запрос на сервер
-      //обрабатываем ответ:
-      .then(response => {
-        if (response.data.hits.length === 0) {
-          console.log('no images found');
-        }
-
-        //записываем в стэйт images (массив картинок пропускаем через ф-цию arrayMapper)
-        this.setState(prevState => ({
-          images: [...prevState.images, ...arrayMapper(response.data.hits)],
-        }));
-        //записываем в стэйт totalAmoutOfPages для логики рендера кнопки Load more
-        this.setState({
-          totalAmoutOfPages: Math.ceil(response.data.totalHits / 12),
-        });
-      })
-      //если ответ не пришёл, записываем в стэйт error.message (потом можно будет вывести ошибки для пользователя)
-      .catch(error => {
-        this.setState({ error: error.message });
-      })
-      //и в любом случае делаем это:
-      .finally(() => this.setState({ isLoading: false }));
+  const loadMore = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  loadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+  const openModal = imageURL => {
+    setCurrentImage(imageURL);
   };
 
-  openModal = imageURL => {
-    this.setState({
-      currentImage: imageURL,
-    });
+  const closeModal = () => {
+    setCurrentImage(null);
   };
 
-  closeModal = () => {
-    this.setState({
-      currentImage: null,
-    });
-  };
+  return (
+    <AppStyled>
+      <SearchBar onSubmit={updateSearchQuery} />
 
-  render() {
-    return (
-      <AppStyled>
-        {/* Компонент SearchBar принимает один проп onSubmit - функцию для
-        передачи значения инпута при сабмите формы. */}
-        <SearchBar onSubmit={this.updateSearchQuery} />
+      {isLoading && <Loader />}
 
-        {this.state.isLoading && <Loader />}
+      {images.length > 0 && (
+        <ImageGallery arrayOfImages={images} openModal={openModal} />
+      )}
 
-        {this.state.images.length > 0 && (
-          <ImageGallery
-            arrayOfImages={this.state.images}
-            openModal={this.openModal}
-          />
-        )}
-        {/* 
-        1. кнопка рендерится когда галерея зарендерилась, т.е запрос завершил свою работу (isLoading = false)
-        2. и если page < totalAmOfPages
-        */}
-        {!this.state.isLoading &&
-          this.state.page < this.state.totalAmoutOfPages && (
-            <Button text="Load More" clickHandler={this.loadMore} />
-          )}
+      {!isLoading && page < totalAmoutOfPages && (
+        <Button text="Load More" clickHandler={loadMore} />
+      )}
 
-        {this.state.currentImage && (
-          <Modal image={this.state.currentImage} closeModal={this.closeModal} />
-        )}
+      {currentImage && <Modal image={currentImage} closeModal={closeModal} />}
 
-        <GlobalStyles />
-      </AppStyled>
-    );
-  }
-}
+      <GlobalStyles />
+    </AppStyled>
+  );
+};
