@@ -16,7 +16,6 @@ export const App = () => {
   const [page, setPage] = useState(1);
   const [images, setImages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
   const [totalAmoutOfPages, setTotalAmoutOfPages] = useState(0);
 
@@ -34,7 +33,9 @@ export const App = () => {
           ]);
           setTotalAmoutOfPages(Math.ceil(response.data.totalHits / 12));
         })
-        .catch(error => setError(error.message))
+        .catch(error => {
+          console.log(error);
+        })
         .finally(() => setIsLoading(false));
     };
     if (searchQuery) {
